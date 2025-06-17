@@ -311,6 +311,160 @@ print(f"Colonne: {{list(df.columns)}}")
     except Exception as e:
         return f"Errore nell'analisi: {str(e)}"
 
+
+# audio analysis tools
+async def transcribe_audio(file_path: str, query: Optional[str] = None) -> str:
+    """Trascrive file audio usando OpenAI Whisper API"""
+    try:
+        import openai
+
+        # Verifica che sia un file audio
+        file_type = detect_file_type(file_path)
+        if not file_type.startswith('audio/'):
+            return f"Il file non è audio: {file_type}"
+
+        # Trascrivi usando Whisper
+        with open(file_path, "rb") as audio_file:
+            transcript = await asyncio.to_thread(
+                openai.audio.transcriptions.create,
+                model="whisper-1",
+                file=audio_file,
+                response_format="text"
+            )
+
+        # Se c'è una query specifica, fornisci contesto
+        if query:
+            result = f"Trascrizione audio:\n{transcript}\n\nRisposta alla domanda '{query}':\n"
+            result += f"[Analizza il testo sopra per rispondere]"
+            return result
+
+        return f"Trascrizione completa:\n{transcript}"
+
+    except Exception as e:
+        return f"Errore nella trascrizione audio: {str(e)}"
+
+
+# video analysis tools
+async def analyze_youtube_video(video_url: str, query: Optional[str] = None) -> str:
+    """Analizza video YouTube con approccio ibrido ottimizzato"""
+    try:
+        print(f"🎥 Analizzando video YouTube: {video_url}")
+
+        # STEP 1: Prova prima i sottotitoli (gratuito)
+        transcript = await get_youtube_transcript(video_url)
+        if not transcript.startswith("Errore"):
+            print("✅ Sottotitoli trovati - usando trascrizione gratuita")
+            if query:
+                return f"Trascrizione YouTube:\n{transcript}\n\nAnalisi per: '{query}'\n[Analizza il testo sopra per rispondere alla domanda]"
+            return f"Trascrizione YouTube completa:\n{transcript}"
+
+        # STEP 2: Solo se fallisce, usa Whisper (a pagamento)
+        print("⚠️ Sottotitoli non disponibili, scaricando audio per Whisper...")
+        audio_file = await download_youtube_audio(video_url)
+        if audio_file and not audio_file.startswith("Errore"):
+            result = await transcribe_audio(audio_file, query)
+            # Cleanup file temporaneo
+            try:
+                os.remove(audio_file)
+            except:
+                pass
+            return result
+
+        return "Errore: Impossibile ottenere contenuto audio dal video YouTube"
+
+    except Exception as e:
+        return f"Errore nell'analisi del video YouTube: {str(e)}"
+
+
+async def get_youtube_transcript(video_url: str) -> str:
+    """Ottiene sottotitoli esistenti da YouTube - GRATUITO"""
+    try:
+        def _get_transcript_sync(video_id: str) -> str:
+            """Helper sincrono per YouTubeTranscriptApi"""
+            from youtube_transcript_api import YouTubeTranscriptApi
+
+            # Prova diverse lingue
+            try:
+                transcript = YouTubeTranscriptApi.get_transcript(
+                    video_id, languages=['en'])
+            except:
+                try:
+                    transcript = YouTubeTranscriptApi.get_transcript(
+                        video_id, languages=['it'])
+                except:
+                    transcript = YouTubeTranscriptApi.get_transcript(video_id)
+
+            # Combina tutto il testo
+            return ' '.join([entry['text'] for entry in transcript])
+
+        import re
+
+        # Estrai video ID da vari formati URL
+        patterns = [
+            r'(?:v=|\/)([0-9A-Za-z_-]{11})',
+            r'(?:embed\/)([0-9A-Za-z_-]{11})',
+            r'(?:watch\?v=)([0-9A-Za-z_-]{11})'
+        ]
+
+        video_id = None
+        for pattern in patterns:
+            match = re.search(pattern, video_url)
+            if match:
+                video_id = match.group(1)
+                break
+
+        if not video_id:
+            return "Errore: Impossibile estrarre video ID dall'URL"
+
+        # ✅ Usa asyncio.to_thread per la chiamata bloccante
+        text = await asyncio.to_thread(_get_transcript_sync, video_id)
+        return text
+
+    except Exception as e:
+        return f"Errore sottotitoli: {str(e)}"
+
+
+async def download_youtube_audio(video_url: str) -> str:
+    """Scarica solo l'audio da YouTube per Whisper - versione semplificata"""
+    try:
+        def _download_audio_sync(video_url: str, temp_dir: str) -> str:
+            """Helper sincrono per yt-dlp"""
+            import yt_dlp
+
+            # Scarica direttamente in formato audio
+            output_path = os.path.join(temp_dir, "audio.%(ext)s")
+
+            ydl_opts = {
+                'format': 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio',
+                'outtmpl': output_path,
+                'noplaylist': True,
+                'quiet': True,
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+
+                # Trova il file scaricato
+                for file in os.listdir(temp_dir):
+                    if file.startswith('audio.'):
+                        file_path = os.path.join(temp_dir, file)
+                        print(
+                            f"📁 File scaricato: {file} (tipo: {detect_file_type(file_path)})")
+                        return file_path
+
+                return None
+
+        # Crea directory temporanea
+        temp_dir = await asyncio.to_thread(tempfile.mkdtemp)
+
+        # ✅ Usa asyncio.to_thread per la chiamata bloccante
+        audio_file = await asyncio.to_thread(_download_audio_sync, video_url, temp_dir)
+
+        return audio_file if audio_file else "Errore: Download audio fallito"
+
+    except Exception as e:
+        return f"Errore download audio: {str(e)}"
+
 # Image analysis tools
 
 
@@ -533,6 +687,9 @@ def detect_file_type(file_path: str) -> str:
         '.mp3': 'audio/mpeg',
         '.wav': 'audio/wav',
         '.m4a': 'audio/mp4',
+        '.ogg': 'audio/ogg',
+        '.webm': 'audio/webm',
+        '.aac': 'audio/aac',
         '.jpg': 'image/jpeg',
         '.jpeg': 'image/jpeg',
         '.png': 'image/png',
@@ -555,12 +712,13 @@ async def analyze_file(file_path: str, query: Optional[str] = None) -> str:
         file_type = detect_file_type(file_path)
         file_extension = Path(file_path).suffix.lower()
 
-        # ✅ GESTIONE MEDIA NON SUPPORTATI
-        unsupported_audio = ['.mp3', '.wav', '.m4a', '.aac', '.flac']
-        unsupported_video = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
+        supported_audio = ['.mp3', '.wav', '.m4a', '.aac', '.flac']
+        if file_extension in supported_audio or file_type.startswith('audio/'):
+            return await transcribe_audio(file_path, query)
 
-        if file_extension in unsupported_audio:
-            return f"ERROR: Audio file analysis not supported. This agent cannot process audio files ({file_extension}). Audio analysis tools are not available."
+        # ✅ GESTIONE MEDIA NON SUPPORTATI
+
+        unsupported_video = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
 
         if file_extension in unsupported_video:
             return f"ERROR: Video file analysis not supported. This agent cannot process video files ({file_extension}). Video analysis tools are not available."
@@ -589,4 +747,4 @@ async def analyze_file(file_path: str, query: Optional[str] = None) -> str:
         return f"Error analyzing file: {str(e)}"
 
 TOOLS: List[Callable[..., Any]] = [search, download_gaia_file,
-                                   python_repl, read_spreadsheet, analyze_spreadsheet_data, fetch_gaia_task, list_gaia_tasks, analyze_file, analyze_image, describe_image, extract_text_from_url]
+                                   python_repl, read_spreadsheet, analyze_spreadsheet_data, fetch_gaia_task, list_gaia_tasks, analyze_file, analyze_image, describe_image, extract_text_from_url, transcribe_audio, analyze_youtube_video, get_youtube_transcript]
