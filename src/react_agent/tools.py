@@ -25,16 +25,69 @@ import base64
 from PIL import Image
 
 
-async def search(query: str) -> Optional[dict[str, Any]]:
-    """Search for general web results.
+async def search(query: str, fallback_queries: bool = True) -> Optional[dict[str, Any]]:
+    """Search con fallback automatico per query che non trovano risultati"""
 
-    This function performs a search using the Tavily search engine, which is designed
-    to provide comprehensive, accurate, and trusted results. It's particularly useful
-    for answering questions about current events.
-    """
     configuration = Configuration.from_context()
     wrapped = TavilySearch(max_results=configuration.max_search_results)
-    return cast(dict[str, Any], await wrapped.ainvoke({"query": query}))
+
+    # Prova la query originale
+    result = await wrapped.ainvoke({"query": query})
+
+    # Se non trova risultati E fallback_queries è True, prova alternative
+    if fallback_queries and (not result or not result.get('results')):
+        # Query alternative semplici
+        alternative_queries = [
+            # Rimuovi virgolette se presenti
+            query.replace('"', ''),
+            # Rimuovi parole comuni che potrebbero non essere nel testo
+            ' '.join([word for word in query.split() if word.lower()
+                     not in ['the', 'a', 'an', 'of', 'in', 'on']]),
+            # Prendi solo le parole chiave principali
+            ' '.join(query.split()[:4]) if len(query.split()) > 4 else query
+        ]
+
+        for alt_query in alternative_queries:
+            if alt_query != query:  # Evita di ripetere la stessa query
+                result = await wrapped.ainvoke({"query": alt_query})
+                if result and result.get('results'):
+                    break
+
+    return result
+
+
+async def extract_text_from_url(url: str) -> str:
+    """Estrae tutto il testo da una URL - tool generico e semplice"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    return f"Errore nell'accesso alla pagina: {response.status}"
+
+                content = await response.text()
+
+                # Parse HTML semplice
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(content, 'html.parser')
+
+                # Rimuovi script e style
+                for script in soup(["script", "style"]):
+                    script.decompose()
+
+                # Estrai tutto il testo
+                text = soup.get_text()
+
+                # Pulisci il testo
+                lines = (line.strip() for line in text.splitlines())
+                chunks = (phrase.strip()
+                          for line in lines for phrase in line.split("  "))
+                text = '\n'.join(chunk for chunk in chunks if chunk)
+
+                # Limita a 50k caratteri per evitare overflow
+                return text[:50000]
+
+    except Exception as e:
+        return f"Errore nell'estrazione del testo: {str(e)}"
 
 
 async def download_gaia_file(task_id: str) -> Optional[str]:
@@ -390,7 +443,7 @@ async def fetch_gaia_task(task_id: str) -> str:
 
                 questions = await response.json()
 
-        # Resto del codice rimane uguale...
+        # Trova la task
         task = None
         for q in questions:
             if q["task_id"] == task_id:
@@ -400,7 +453,7 @@ async def fetch_gaia_task(task_id: str) -> str:
         if not task:
             return f"Task ID {task_id} non trovata."
 
-        # Formatta il prompt...
+        # Formatta il prompt - SOLO info specifiche della task
         prompt_parts = []
         prompt_parts.append("=== GAIA TASK ===")
         prompt_parts.append(f"Task ID: {task['task_id']}")
@@ -414,16 +467,8 @@ async def fetch_gaia_task(task_id: str) -> str:
         else:
             prompt_parts.append("\nNessun file allegato.")
 
-        prompt_parts.append("\n=== ISTRUZIONI ===")
-        prompt_parts.append("Rispondi seguendo il formato GAIA:")
-        prompt_parts.append(
-            "- La risposta finale deve essere un numero, una parola/frase breve, o una lista separata da virgole")
-        prompt_parts.append(
-            "- Non usare articoli o abbreviazioni salvo diversamente specificato")
-        prompt_parts.append(
-            "- Per numeri, non usare virgole o simboli ($, %) salvo diversamente specificato")
-        prompt_parts.append(
-            "- Concludi sempre con: FINAL ANSWER: [la tua risposta]")
+        # Le istruzioni generali sono già nel SYSTEM_PROMPT!
+        # Non serve ripeterle qui
 
         return "\n".join(prompt_parts)
 
@@ -545,4 +590,4 @@ async def analyze_file(file_path: str, query: Optional[str] = None) -> str:
         return f"Errore nell'analisi del file: {str(e)}"
 
 TOOLS: List[Callable[..., Any]] = [search, download_gaia_file,
-                                   python_repl, read_spreadsheet, analyze_spreadsheet_data, fetch_gaia_task, list_gaia_tasks, analyze_file, analyze_image, describe_image]
+                                   python_repl, read_spreadsheet, analyze_spreadsheet_data, fetch_gaia_task, list_gaia_tasks, analyze_file, analyze_image, describe_image, extract_text_from_url]

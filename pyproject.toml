@@ -23,6 +23,7 @@ dependencies = [
     "PyPDF2>=3.0.0",    # per PDF
     "python-magic>=0.4.27",  # per rilevare tipi file
     "pillow>=10.0.0",   # per immagini
+    "beautifulsoup4>=4.12.0"
 
 ]
 
