@@ -21,6 +21,8 @@ import sys
 import subprocess
 import pandas as pd
 import mimetypes
+import base64
+from PIL import Image
 
 
 async def search(query: str) -> Optional[dict[str, Any]]:
@@ -256,6 +258,123 @@ print(f"Colonne: {{list(df.columns)}}")
     except Exception as e:
         return f"Errore nell'analisi: {str(e)}"
 
+# Image analysis tools
+
+
+async def analyze_image(file_path: str, query: str) -> str:
+    """Analizza un'immagine usando AI vision e risponde a una query specifica.
+
+    Args:
+        file_path: Percorso del file immagine
+        query: Domanda specifica sull'immagine
+
+    Returns:
+        Risposta basata sull'analisi dell'immagine
+    """
+    try:
+        # Controlla che sia effettivamente un'immagine
+        file_type = detect_file_type(file_path)
+        if not file_type.startswith('image/'):
+            return f"Il file non è un'immagine: {file_type}"
+
+        # Leggi e codifica l'immagine
+        def encode_image(image_path: str) -> str:
+            with open(image_path, "rb") as image_file:
+                return base64.b64encode(image_file.read()).decode('utf-8')
+
+        # Usa asyncio.to_thread per operazioni I/O
+        base64_image = await asyncio.to_thread(encode_image, file_path)
+
+        # Configura il client (OpenAI o Anthropic)
+        configuration = Configuration.from_context()
+
+        # Opzione 1: OpenAI GPT-4 Vision
+        if "openai" in configuration.model.lower():
+            import openai
+
+            response = await asyncio.to_thread(
+                openai.chat.completions.create,
+                model="gpt-4o",  # o gpt-4-vision-preview
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Analizza questa immagine e rispondi alla domanda: {query}"},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=1000
+            )
+
+            return response.choices[0].message.content
+
+        # Opzione 2: Anthropic Claude 3
+        elif "anthropic" in configuration.model.lower():
+            import anthropic
+
+            client = anthropic.Anthropic()
+
+            # Rileva il tipo di immagine per il media_type
+            image_format = Path(file_path).suffix.lower().replace('.', '')
+            if image_format in ['jpg', 'jpeg']:
+                media_type = "image/jpeg"
+            elif image_format == 'png':
+                media_type = "image/png"
+            elif image_format == 'gif':
+                media_type = "image/gif"
+            else:
+                media_type = "image/jpeg"  # fallback
+
+            response = await asyncio.to_thread(
+                client.messages.create,
+                model="claude-3-sonnet-20240229",  # o claude-3-opus-20240229
+                max_tokens=1000,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": base64_image,
+                                },
+                            },
+                            {
+                                "type": "text",
+                                "text": f"Analizza questa immagine e rispondi alla domanda: {query}"
+                            }
+                        ],
+                    }
+                ],
+            )
+
+            return response.content[0].text
+
+        else:
+            return "Modello non supportato per l'analisi delle immagini. Usa OpenAI o Anthropic."
+
+    except Exception as e:
+        return f"Errore nell'analisi dell'immagine: {str(e)}"
+
+
+async def describe_image(file_path: str) -> str:
+    """Descrive il contenuto di un'immagine in modo generale.
+
+    Args:
+        file_path: Percorso del file immagine
+
+    Returns:
+        Descrizione dettagliata dell'immagine
+    """
+    return await analyze_image(file_path, "Descrivi dettagliatamente tutto quello che vedi in questa immagine, inclusi oggetti, persone, testo, colori, e qualsiasi dettaglio rilevante.")
 # - fetch data from GAIA
 
 
@@ -406,9 +525,12 @@ async def analyze_file(file_path: str, query: Optional[str] = None) -> str:
             else:
                 return await read_spreadsheet(file_path)
 
-        # Altri tipi di file (da implementare)
+        # immagini
         elif file_type.startswith('image/'):
-            return f"File immagine rilevato: {Path(file_path).name} (tipo: {file_type})\nTool per immagini non ancora implementato."
+            if query:
+                return await analyze_image(file_path, query)
+            else:
+                return await describe_image(file_path)
 
         elif file_type.startswith('audio/'):
             return f"File audio rilevato: {Path(file_path).name} (tipo: {file_type})\nTool per audio non ancora implementato."
@@ -423,4 +545,4 @@ async def analyze_file(file_path: str, query: Optional[str] = None) -> str:
         return f"Errore nell'analisi del file: {str(e)}"
 
 TOOLS: List[Callable[..., Any]] = [search, download_gaia_file,
-                                   python_repl, read_spreadsheet, analyze_spreadsheet_data, fetch_gaia_task, list_gaia_tasks, analyze_file]
+                                   python_repl, read_spreadsheet, analyze_spreadsheet_data, fetch_gaia_task, list_gaia_tasks, analyze_file, analyze_image, describe_image]
