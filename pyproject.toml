@@ -16,6 +16,13 @@ dependencies = [
     "langchain-fireworks>=0.1.7",
     "python-dotenv>=1.0.1",
     "langchain-tavily>=0.1",
+    "requests>=2.31.0",
+    "pandas>=2.0.0", 
+    "openpyxl>=3.1.0",  # per Excel
+    "PyPDF2>=3.0.0",    # per PDF
+    "python-magic>=0.4.27",  # per rilevare tipi file
+    "pillow>=10.0.0",   # per immagini
+
 ]
 
 
