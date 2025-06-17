@@ -550,18 +550,20 @@ def detect_file_type(file_path: str) -> str:
 
 
 async def analyze_file(file_path: str, query: Optional[str] = None) -> str:
-    """Analizza automaticamente un file basandosi sul suo tipo.
-
-    Args:
-        file_path: Percorso del file
-        query: Query opzionale per l'analisi
-
-    Returns:
-        Risultato dell'analisi
-    """
+    """Analizza automaticamente un file basandosi sul suo tipo."""
     try:
         file_type = detect_file_type(file_path)
         file_extension = Path(file_path).suffix.lower()
+
+        # ✅ GESTIONE MEDIA NON SUPPORTATI
+        unsupported_audio = ['.mp3', '.wav', '.m4a', '.aac', '.flac']
+        unsupported_video = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
+
+        if file_extension in unsupported_audio:
+            return f"ERROR: Audio file analysis not supported. This agent cannot process audio files ({file_extension}). Audio analysis tools are not available."
+
+        if file_extension in unsupported_video:
+            return f"ERROR: Video file analysis not supported. This agent cannot process video files ({file_extension}). Video analysis tools are not available."
 
         # Spreadsheet
         if file_extension in ['.csv', '.xlsx', '.xls'] or 'spreadsheet' in file_type or 'csv' in file_type:
@@ -570,24 +572,21 @@ async def analyze_file(file_path: str, query: Optional[str] = None) -> str:
             else:
                 return await read_spreadsheet(file_path)
 
-        # immagini
+        # Immagini
         elif file_type.startswith('image/'):
             if query:
                 return await analyze_image(file_path, query)
             else:
                 return await describe_image(file_path)
 
-        elif file_type.startswith('audio/'):
-            return f"File audio rilevato: {Path(file_path).name} (tipo: {file_type})\nTool per audio non ancora implementato."
-
         elif file_type == 'application/pdf':
-            return f"File PDF rilevato: {Path(file_path).name}\nTool per PDF non ancora implementato."
+            return f"PDF file detected: {Path(file_path).name}\nPDF analysis tool not yet implemented."
 
         else:
-            return f"Tipo di file non supportato: {file_extension} (tipo: {file_type})"
+            return f"File type not supported: {file_extension} (type: {file_type})"
 
     except Exception as e:
-        return f"Errore nell'analisi del file: {str(e)}"
+        return f"Error analyzing file: {str(e)}"
 
 TOOLS: List[Callable[..., Any]] = [search, download_gaia_file,
                                    python_repl, read_spreadsheet, analyze_spreadsheet_data, fetch_gaia_task, list_gaia_tasks, analyze_file, analyze_image, describe_image, extract_text_from_url]
