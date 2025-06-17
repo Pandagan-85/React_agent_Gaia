@@ -8,6 +8,7 @@ from typing import Annotated
 from langchain_core.runnables import ensure_config
 from langgraph.config import get_config
 
+
 from react_agent import prompts
 
 
@@ -24,7 +25,7 @@ class Configuration:
     )
 
     model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
-        default="anthropic/claude-3-5-sonnet-20240620",
+        default="openai/gpt-4o",
         metadata={
             "description": "The name of the language model to use for the agent's main interactions. "
             "Should be in the form: provider/model-name."

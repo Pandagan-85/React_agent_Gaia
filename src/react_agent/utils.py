@@ -13,7 +13,8 @@ def get_message_text(msg: BaseMessage) -> str:
     elif isinstance(content, dict):
         return content.get("text", "")
     else:
-        txts = [c if isinstance(c, str) else (c.get("text") or "") for c in content]
+        txts = [c if isinstance(c, str) else (
+            c.get("text") or "") for c in content]
         return "".join(txts).strip()
 
 
