@@ -1,241 +1,286 @@
-# LangGraph ReAct Agent Template
+# GAIA Benchmark AI Agent
 
-[![CI](https://github.com/langchain-ai/react-agent/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/langchain-ai/react-agent/actions/workflows/unit-tests.yml)
-[![Integration Tests](https://github.com/langchain-ai/react-agent/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/langchain-ai/react-agent/actions/workflows/integration-tests.yml)
-[![Open in - LangGraph Studio](https://img.shields.io/badge/Open_in-LangGraph_Studio-00324d.svg?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4NS4zMzMiIGhlaWdodD0iODUuMzMzIiB2ZXJzaW9uPSIxLjAiIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHBhdGggZD0iTTEzIDcuOGMtNi4zIDMuMS03LjEgNi4zLTYuOCAyNS43LjQgMjQuNi4zIDI0LjUgMjUuOSAyNC41QzU3LjUgNTggNTggNTcuNSA1OCAzMi4zIDU4IDcuMyA1Ni43IDYgMzIgNmMtMTIuOCAwLTE2LjEuMy0xOSAxLjhtMzcuNiAxNi42YzIuOCAyLjggMy40IDQuMiAzLjQgNy42cy0uNiA0LjgtMy40IDcuNkw0Ny4yIDQzSDE2LjhsLTMuNC0zLjRjLTQuOC00LjgtNC44LTEwLjQgMC0xNS4ybDMuNC0zLjRoMzAuNHoiLz48cGF0aCBkPSJNMTguOSAyNS42Yy0xLjEgMS4zLTEgMS43LjQgMi41LjkuNiAxLjcgMS44IDEuNyAyLjcgMCAxIC43IDIuOCAxLjYgNC4xIDEuNCAxLjkgMS40IDIuNS4zIDMuMi0xIC42LS42LjkgMS40LjkgMS41IDAgMi43LS41IDIuNy0xIDAtLjYgMS4xLS44IDIuNi0uNGwyLjYuNy0xLjgtMi45Yy01LjktOS4zLTkuNC0xMi4zLTExLjUtOS44TTM5IDI2YzAgMS4xLS45IDIuNS0yIDMuMi0yLjQgMS41LTIuNiAzLjQtLjUgNC4yLjguMyAyIDEuNyAyLjUgMy4xLjYgMS41IDEuNCAyLjMgMiAyIDEuNS0uOSAxLjItMy41LS40LTMuNS0yLjEgMC0yLjgtMi44LS44LTMuMyAxLjYtLjQgMS42LS41IDAtLjYtMS4xLS4xLTEuNS0uNi0xLjItMS42LjctMS43IDMuMy0yLjEgMy41LS41LjEuNS4yIDEuNi4zIDIuMiAwIC43LjkgMS40IDEuOSAxLjYgMi4xLjQgMi4zLTIuMy4yLTMuMi0uOC0uMy0yLTEuNy0yLjUtMy4xLTEuMS0zLTMtMy4zLTMtLjUiLz48L3N2Zz4=)](https://langgraph-studio.vercel.app/templates/open?githubUrl=https://github.com/langchain-ai/react-agent)
+A production-ready AI agent designed to tackle the GAIA benchmark, built for the Hugging Face AI Agents Course (Unit 4).
 
-This template showcases a [ReAct agent](https://arxiv.org/abs/2210.03629) implemented using [LangGraph](https://github.com/langchain-ai/langgraph), designed for [LangGraph Studio](https://github.com/langchain-ai/langgraph-studio). ReAct agents are uncomplicated, prototypical agents that can be flexibly extended to many tools.
+## About This Project
+
+This agent was developed as part of the **Hugging Face AI Agents Course - Unit 4**, with the goal of building an AI system capable of scoring well on the challenging GAIA benchmark.
+
+## What is GAIA?
+
+GAIA (General AI Assistants) is a benchmark that evaluates AI systems on real-world assistant tasks that are:
+
+- **Simple for humans** (92% success rate) but hard for AI (GPT-4: ~15%)
+- **Multi-modal**: requiring text, image, audio, and video understanding
+- **Tool-dependent**: needing web search, file analysis, and code execution
+  – O**bjectively measurable**: with unambiguous factual answers
+
+# What our agent does
+
+## 🔍 Multi-modal Analysis:
+
+- Audio transcription (MP3, WAV, M4A files) using OpenAI Whisper
+- Image analysis and description using Vision models
+- YouTube video content analysis (subtitles + audio extraction)
+- Document processing (Excel, CSV, PDF, text files)
+
+## 🌐 Web Intelligence:
+
+- Web search and content extraction using Tavily
+- Real-time information gathering from websites
+- YouTube video analysis with transcript extraction
+- Source verification and fact-checking
+
+## 🧮 Data Processing:
+
+- Python code execution for complex calculations
+- Spreadsheet analysis and data manipulation
+- Multi-step reasoning chains with state management
+- File format detection and appropriate tool selection
+
+## 🎯 GAIA-Specific Features:
+
+- Automatic task difficulty assessment (Level 1-3)
+- GAIA API integration for benchmark submission
+- Autonomous execution without human guidance
+- Proper answer formatting for benchmark evaluation
+- Rate limiting and error handling for production use
+
+# Architecture & Template
 
 ![Graph view in LangGraph studio UI](./static/studio_ui.png)
 
-The core logic, defined in `src/react_agent/graph.py`, demonstrates a flexible ReAct agent that iteratively reasons about user queries and executes actions, showcasing the power of this approach for complex problem-solving tasks.
+This agent is built using the **LangGraph ReAct Agent Template**, which provides a robust foundation for reasoning and action agents.
 
-## What it does
+### Core LangGraph Components:
 
-The ReAct agent:
+- **StateGraph**: Manages agent execution flow between reasoning and action
+- **ToolNode**: Handles tool invocation and response processing
+- **Configuration**: Flexible model and parameter settings
+- **Message Handling**: Structured conversation state management
 
-1. Takes a user **query** as input
-2. Reasons about the query and decides on an action
-3. Executes the chosen action using available tools
-4. Observes the result of the action
-5. Repeats steps 2-4 until it can provide a final answer
+### ReAct Pattern Implementation:
 
-By default, it's set up with a basic set of tools, but can be easily extended with custom tools to suit various use cases.
+1. **Reason**: Agent analyzes the task and plans next steps
+2. **Act**: Agent executes chosen tools to gather information
+3. **Observe**: Agent processes tool results and updates understanding
+4. **Repeat**: Continue until task is complete with final answer
+
+### Tool Ecosystem (15+ Specialized Tools):
+
+| Category             | Tools                                                        | Purpose                                   |
+| -------------------- | ------------------------------------------------------------ | ----------------------------------------- |
+| **Web & Search**     | `search`, `extract_text_from_url`                            | Information gathering and web browsing    |
+| **Media Analysis**   | `transcribe_audio`, `analyze_youtube_video`, `analyze_image` | Audio/video/image processing              |
+| **File Processing**  | `analyze_file`, `read_spreadsheet`, `download_gaia_file`     | Document analysis and file handling       |
+| **Data Science**     | `python_repl`, `analyze_spreadsheet_data`                    | Calculations and data analysis            |
+| **GAIA Integration** | `fetch_gaia_task`, `list_gaia_tasks`                         | Benchmark interaction and task management |
 
 ## Getting Started
 
 Assuming you have already [installed LangGraph Studio](https://github.com/langchain-ai/langgraph-studio?tab=readme-ov-file#download), to set up:
 
-1. Create a `.env` file.
+### 1. Environment Setup
 
 ```bash
+# Clone the repository
+git clone <your-repo-url>
+cd gaia-benchmark-agent
+
+# Create .env file
 cp .env.example .env
 ```
 
-2. Define required API keys in your `.env` file.
+### 2. Configure API Keys
 
-The primary [search tool](./src/react_agent/tools.py) [^1] used is [Tavily](https://tavily.com/). Create an API key [here](https://app.tavily.com/sign-in).
+Add the following to your `.env` file:
 
-<!--
-Setup instruction auto-generated by `langgraph template lock`. DO NOT EDIT MANUALLY.
--->
+```env
+# Required for search functionality
+TAVILY_API_KEY=your-tavily-api-key
 
-### Setup Model
+# Choose your LLM provider
+ANTHROPIC_API_KEY=your-anthropic-key
+# OR
+OPENAI_API_KEY=your-openai-key
 
-The defaults values for `model` are shown below:
+# Optional: LangSmith for tracing
+LANGSMITH_API_KEY=your-langsmith-key
+LANGSMITH_PROJECT=gaia-agent
+```
+
+### 3. Quick Start
+
+#### Run GAIA Benchmark (Full Automation)
+
+```bash
+# Run first 5 questions for testing
+python -m react_agent.run_gaia_benchmark
+
+# Edit the script to change username and max_questions
+```
+
+#### Interactive Development
+
+```bash
+# Open in LangGraph Studio
+langgraph dev
+
+# Or run individual tasks
+python -c "
+from react_agent import run_all_gaia_tasks
+import asyncio
+
+async def test():
+    result = await run_all_gaia_tasks(
+        username='your_username',
+        max_questions=3
+    )
+    print(result)
+
+asyncio.run(test())
+"
+```
+
+### 4. Model Configuration
+
+The agent supports multiple LLM providers. Configure in LangGraph Studio or via environment:
 
 ```yaml
+# Default configuration
 model: anthropic/claude-3-5-sonnet-20240620
+# Alternative options:
+# model: openai/gpt-4o
+# model: openai/gpt-4-turbo
 ```
 
-Follow the instructions below to get set up, or pick one of the additional options.
+## GAIA Performance & Results
 
-#### Anthropic
+### Benchmark Structure
 
-To use Anthropic's chat models:
+- **Level 1**: Basic tasks (5-10 steps, 1-2 tools) - Target: >30%
+- **Level 2**: Intermediate tasks (10-15 steps, multiple tools) - Target: >15%
+- **Level 3**: Complex tasks (15+ steps, advanced reasoning) - Target: >5%
 
-1. Sign up for an [Anthropic API key](https://console.anthropic.com/) if you haven't already.
-2. Once you have your API key, add it to your `.env` file:
+### Key Features for GAIA Success
 
+- ✅ **Autonomous Operation**: No human guidance required during execution
+- ✅ **Multi-modal Processing**: Handles text, audio, images, and video
+- ✅ **Robust Error Handling**: Graceful failure recovery and retries
+- ✅ **Proper Formatting**: GAIA-compliant answer format with "FINAL ANSWER:"
+- ✅ **Rate Limiting**: API compliance with 5-second delays between questions
+- ✅ **Tool Orchestration**: Intelligent tool selection and chaining
+
+### Example GAIA Tasks Our Agent Can Handle:
+
+- **Level 1**: "What was the enrollment count of the H. pylori clinical trial from Jan-May 2018 on NIH website?"
+- **Level 2**: "Analyze this Excel file and calculate total food sales excluding drinks"
+- **Level 3**: "Find the astronaut from NASA Group X who spent least time in space, excluding those with zero time"
+
+## How to Customize
+
+### 1. Add New Tools
+
+Extend the agent's capabilities by adding tools in `src/react_agent/tools.py`:
+
+```python
+async def my_custom_tool(parameter: str) -> str:
+    """Description of what this tool does."""
+    # Your implementation here
+    return result
+
+# Add to TOOLS list
+TOOLS.append(my_custom_tool)
 ```
-ANTHROPIC_API_KEY=your-api-key
+
+### 2. Modify System Prompt
+
+Update the agent's behavior in `src/react_agent/prompts.py`:
+
+```python
+SYSTEM_PROMPT = """
+Your custom instructions here...
+Remember to always end with: FINAL ANSWER: [answer]
+"""
 ```
-#### OpenAI
 
-To use OpenAI's chat models:
+### 3. Adjust Model Settings
 
-1. Sign up for an [OpenAI API key](https://platform.openai.com/signup).
-2. Once you have your API key, add it to your `.env` file:
-```
-OPENAI_API_KEY=your-api-key
-```
+Configure different models in `src/react_agent/configuration.py` or via LangGraph Studio.
 
+### 4. Custom GAIA Integration
 
+Modify `src/react_agent/gaia_runner.py` to:
 
-
-
-<!--
-End setup instructions
--->
-
-
-3. Customize whatever you'd like in the code.
-4. Open the folder LangGraph Studio!
-
-## How to customize
-
-1. **Add new tools**: Extend the agent's capabilities by adding new tools in [tools.py](./src/react_agent/tools.py). These can be any Python functions that perform specific tasks.
-2. **Select a different model**: We default to Anthropic's Claude 3 Sonnet. You can select a compatible chat model using `provider/model-name` via configuration. Example: `openai/gpt-4-turbo-preview`.
-3. **Customize the prompt**: We provide a default system prompt in [prompts.py](./src/react_agent/prompts.py). You can easily update this via configuration in the studio.
-
-You can also quickly extend this template by:
-
-- Modifying the agent's reasoning process in [graph.py](./src/react_agent/graph.py).
-- Adjusting the ReAct loop or adding additional steps to the agent's decision-making process.
+- Change submission parameters
+- Add custom preprocessing
+- Implement different execution strategies
 
 ## Development
 
-While iterating on your graph, you can edit past state and rerun your app from past states to debug specific nodes. Local changes will be automatically applied via hot reload. Try adding an interrupt before the agent calls tools, updating the default system message in `src/react_agent/configuration.py` to take on a persona, or adding additional nodes and edges!
+### Local Development with Hot Reload
 
-Follow up requests will be appended to the same thread. You can create an entirely new thread, clearing previous history, using the `+` button in the top right.
+```bash
+# Start LangGraph Studio for interactive development
+langgraph dev
 
-You can find the latest (under construction) docs on [LangGraph](https://github.com/langchain-ai/langgraph) here, including examples and other references. Using those guides can help you pick the right patterns to adapt here for your use case.
+# Run tests
+python -m pytest tests/
 
-LangGraph Studio also integrates with [LangSmith](https://smith.langchain.com/) for more in-depth tracing and collaboration with teammates.
+# Format code
+make format
 
-[^1]: https://python.langchain.com/docs/concepts/#tools
+# Lint code
+make lint
+```
 
-<!--
-Configuration auto-generated by `langgraph template lock`. DO NOT EDIT MANUALLY.
-{
-  "config_schemas": {
-    "agent": {
-      "type": "object",
-      "properties": {
-        "model": {
-          "type": "string",
-          "default": "anthropic/claude-3-5-sonnet-20240620",
-          "description": "The name of the language model to use for the agent's main interactions. Should be in the form: provider/model-name.",
-          "environment": [
-            {
-              "value": "anthropic/claude-1.2",
-              "variables": "ANTHROPIC_API_KEY"
-            },
-            {
-              "value": "anthropic/claude-2.0",
-              "variables": "ANTHROPIC_API_KEY"
-            },
-            {
-              "value": "anthropic/claude-2.1",
-              "variables": "ANTHROPIC_API_KEY"
-            },
-            {
-              "value": "anthropic/claude-3-5-sonnet-20240620",
-              "variables": "ANTHROPIC_API_KEY"
-            },
-            {
-              "value": "anthropic/claude-3-haiku-20240307",
-              "variables": "ANTHROPIC_API_KEY"
-            },
-            {
-              "value": "anthropic/claude-3-opus-20240229",
-              "variables": "ANTHROPIC_API_KEY"
-            },
-            {
-              "value": "anthropic/claude-3-sonnet-20240229",
-              "variables": "ANTHROPIC_API_KEY"
-            },
-            {
-              "value": "anthropic/claude-instant-1.2",
-              "variables": "ANTHROPIC_API_KEY"
-            },
-            {
-              "value": "openai/gpt-3.5-turbo",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-3.5-turbo-0125",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-3.5-turbo-0301",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-3.5-turbo-0613",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-3.5-turbo-1106",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-3.5-turbo-16k",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-3.5-turbo-16k-0613",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-0125-preview",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-0314",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-0613",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-1106-preview",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-32k",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-32k-0314",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-32k-0613",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-turbo",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-turbo-preview",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4-vision-preview",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4o",
-              "variables": "OPENAI_API_KEY"
-            },
-            {
-              "value": "openai/gpt-4o-mini",
-              "variables": "OPENAI_API_KEY"
-            }
-          ]
-        }
-      },
-      "environment": [
-        "TAVILY_API_KEY"
-      ]
-    }
-  }
-}
--->
+### Debugging Tips
+
+- Use LangGraph Studio's state inspection to debug execution flow
+- Check `src/react_agent/prompts.py` for GAIA-specific instructions
+- Monitor tool execution in the studio's trace view
+- Test individual tools with small examples before full GAIA runs
+
+### Integration with LangSmith
+
+For detailed tracing and collaboration:
+
+1. Set `LANGSMITH_API_KEY` in `.env`
+2. Set `LANGSMITH_TRACING=true`
+3. View detailed execution traces in LangSmith dashboard
+
+## Project Structure
+
+```
+src/react_agent/
+├── __init__.py              # Main exports
+├── graph.py                 # LangGraph state machine
+├── tools.py                 # Tool implementations (15+ tools)
+├── prompts.py               # GAIA-optimized system prompts
+├── configuration.py         # Agent configuration
+├── gaia_runner.py          # GAIA benchmark orchestration
+├── run_gaia_benchmark.py   # CLI entry point
+└── utils.py                # Helper functions
+
+tests/
+├── unit_tests/             # Unit tests
+└── integration_tests/      # GAIA integration tests
+```
+
+## Template Credit & Architecture
+
+This agent is built on the [LangGraph ReAct Agent Template](https://github.com/langchain-ai/react-agent), which provides:
+
+- 🧠 **ReAct Pattern**: Iterative reasoning and acting loops
+- 🛠️ **Tool Integration**: Seamless tool calling and response handling
+- 📊 **State Management**: Robust conversation state tracking
+- 🔄 **Error Handling**: Automatic retries and graceful failure modes
+- 📈 **Scalability**: Production-ready architecture with LangGraph
+
+The core logic, defined in `src/react_agent/graph.py`, demonstrates a flexible ReAct agent that iteratively reasons about user queries and executes actions, making it ideal for the complex, multi-step reasoning required by GAIA benchmark tasks.
+
+---
+
+**Course**: Hugging Face AI Agents Course - Unit 4  
+**Objective**: Build production-ready agents capable of scoring on challenging benchmarks  
+**Framework**: LangGraph + ReAct pattern for robust agent orchestration
