@@ -12,7 +12,8 @@ from langchain_tavily import TavilySearch  # type: ignore[import-not-found]
 
 from react_agent.configuration import Configuration
 
-import requests
+import aiohttp
+import asyncio
 import tempfile
 import os
 from pathlib import Path
@@ -35,47 +36,46 @@ async def search(query: str) -> Optional[dict[str, Any]]:
 
 
 async def download_gaia_file(task_id: str) -> Optional[str]:
-    """Download file associato a una domanda GAIA.
-
-    Args:
-        task_id: ID della task GAIA
-
-    Returns:
-        Path del file scaricato o None se non esiste
-    """
+    """Download file associato a una domanda GAIA."""
     try:
         url = f"https://agents-course-unit4-scoring.hf.space/files/{task_id}"
-        response = requests.get(url)
 
-        if response.status_code == 200:
-            # Crea file temporaneo
-            temp_dir = tempfile.mkdtemp()
-            filename = response.headers.get(
-                'content-disposition', '').split('filename=')[-1].strip('"')
-            if not filename:
-                filename = f"{task_id}_file"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    # Usa asyncio.to_thread per operazioni I/O sincrone
+                    temp_dir = await asyncio.to_thread(tempfile.mkdtemp)  # ✅
 
-            file_path = os.path.join(temp_dir, filename)
-            with open(file_path, 'wb') as f:
-                f.write(response.content)
+                    content_disposition = response.headers.get(
+                        'content-disposition', '')
+                    filename = content_disposition.split(
+                        'filename=')[-1].strip('"') if 'filename=' in content_disposition else f"{task_id}_file"
 
-            return file_path
+                    file_path = os.path.join(temp_dir, filename)
+                    content = await response.read()
+
+                    # Wrap file operations in asyncio.to_thread
+                    # ✅
+                    await asyncio.to_thread(_write_file, file_path, content)
+
+                    return file_path
         return None
     except Exception as e:
         return f"Errore nel download: {str(e)}"
+
+# Helper function per scrivere file
+
+
+def _write_file(file_path: str, content: bytes) -> None:
+    """Helper sincrono per scrivere file."""
+    with open(file_path, 'wb') as f:
+        f.write(content)
 
 # Tool per Python REPL
 
 
 async def python_repl(code: str) -> str:
-    """Esegue codice Python e restituisce il risultato.
-
-    Args:
-        code: Codice Python da eseguire
-
-    Returns:
-        Output del codice o messaggio di errore
-    """
+    """Esegue codice Python e restituisce il risultato."""
     try:
         # Crea un ambiente isolato per l'esecuzione
         local_vars = {}
@@ -92,11 +92,32 @@ async def python_repl(code: str) -> str:
         # Esegui il codice
         exec(code, global_vars, local_vars)
 
-        # Cerca variabili di output comuni
-        if 'result' in local_vars:
-            return str(local_vars['result'])
-        elif 'answer' in local_vars:
-            return str(local_vars['answer'])
+        # Cerca variabili di output comuni con priorità
+        output_vars = ['final_answer', 'result', 'answer', 'output', 'total']
+
+        for var_name in output_vars:
+            if var_name in local_vars:
+                return str(local_vars[var_name])
+
+        # Se non trova variabili specifiche, cerca l'ultima espressione valutata
+        # Riesegui l'ultima linea per catturare il valore di ritorno
+        lines = code.strip().split('\n')
+        if lines:
+            last_line = lines[-1].strip()
+            if last_line and not last_line.startswith('#'):
+                try:
+                    # Se l'ultima linea è una variabile o espressione, valutala
+                    last_result = eval(last_line, global_vars, local_vars)
+                    if last_result is not None:
+                        return str(last_result)
+                except:
+                    pass
+
+        # Se tutto fallisce, mostra le variabili disponibili
+        available_vars = [
+            k for k in local_vars.keys() if not k.startswith('_')]
+        if available_vars:
+            return f"Codice eseguito. Variabili disponibili: {available_vars}. Valori: {[f'{k}={local_vars[k]}' for k in available_vars[:3]]}"
         else:
             return "Codice eseguito con successo"
 
@@ -105,40 +126,33 @@ async def python_repl(code: str) -> str:
 
 
 async def read_spreadsheet(file_path: str, sheet_name: Optional[str] = None) -> str:
-    """Legge file Excel o CSV e restituisce informazioni strutturate.
-
-    Args:
-        file_path: Percorso del file
-        sheet_name: Nome del foglio Excel (opzionale)
-
-    Returns:
-        Descrizione strutturata del contenuto del file
-    """
+    """Legge file Excel o CSV e restituisce informazioni strutturate."""
     try:
         # Rileva il tipo di file usando la nostra funzione
         file_type = detect_file_type(file_path)
         file_extension = Path(file_path).suffix.lower()
 
-        # Leggi il file appropriato
+        # Wrap le operazioni pandas in asyncio.to_thread
         if file_extension == '.csv' or file_type == 'text/csv':
-            df = pd.read_csv(file_path)
+            df = await asyncio.to_thread(pd.read_csv, file_path)  # ✅
             sheets_info = ""
         elif file_extension in ['.xlsx', '.xls'] or 'spreadsheet' in file_type:
             # Per Excel, mostra prima i fogli disponibili
-            excel_file = pd.ExcelFile(file_path)
+            excel_file = await asyncio.to_thread(pd.ExcelFile, file_path)  # ✅
             sheets_info = f"Fogli disponibili: {excel_file.sheet_names}\n"
 
             # Leggi il foglio specificato o il primo
             if sheet_name:
-                df = pd.read_excel(file_path, sheet_name=sheet_name)
+                # ✅
+                df = await asyncio.to_thread(pd.read_excel, file_path, sheet_name=sheet_name)
             else:
-                df = pd.read_excel(
-                    file_path, sheet_name=excel_file.sheet_names[0])
+                # ✅
+                df = await asyncio.to_thread(pd.read_excel, file_path, sheet_name=excel_file.sheet_names[0])
                 sheets_info += f"Leggendo foglio: {excel_file.sheet_names[0]}\n"
         else:
             return f"Tipo di file non supportato: {file_extension} (tipo rilevato: {file_type})"
 
-        # Resto del codice rimane uguale...
+        # Il resto rimane uguale (queste operazioni sono in memoria, non I/O)
         analysis = []
         analysis.append(f"File: {Path(file_path).name}")
         if sheets_info:
@@ -176,27 +190,19 @@ async def read_spreadsheet(file_path: str, sheet_name: Optional[str] = None) -> 
 
 
 async def analyze_spreadsheet_data(file_path: str, query: str, sheet_name: Optional[str] = None) -> str:
-    """Analizza dati di un spreadsheet basandosi su una query specifica.
-
-    Args:
-        file_path: Percorso del file
-        query: Cosa cercare/calcolare nei dati
-        sheet_name: Nome del foglio Excel (opzionale)
-
-    Returns:
-        Risultato dell'analisi
-    """
+    """Analizza dati di un spreadsheet basandosi su una query specifica."""
     try:
-        # Leggi il file
+        # Leggi il file con asyncio.to_thread
         file_extension = Path(file_path).suffix.lower()
 
         if file_extension == '.csv':
-            df = pd.read_csv(file_path)
+            df = await asyncio.to_thread(pd.read_csv, file_path)  # ✅
         elif file_extension in ['.xlsx', '.xls']:
             if sheet_name:
-                df = pd.read_excel(file_path, sheet_name=sheet_name)
+                # ✅
+                df = await asyncio.to_thread(pd.read_excel, file_path, sheet_name=sheet_name)
             else:
-                df = pd.read_excel(file_path)
+                df = await asyncio.to_thread(pd.read_excel, file_path)  # ✅
         else:
             return f"Tipo di file non supportato: {file_extension}"
 
@@ -254,25 +260,18 @@ print(f"Colonne: {{list(df.columns)}}")
 
 
 async def fetch_gaia_task(task_id: str) -> str:
-    """Recupera una specifica task GAIA e prepara il prompt completo.
-
-    Args:
-        task_id: ID della task GAIA da recuperare
-
-    Returns:
-        Prompt formattato con la domanda e info sui file allegati
-    """
+    """Recupera una specifica task GAIA."""
     try:
-        # Fetch della lista completa delle domande
-        response = requests.get(
-            "https://agents-course-unit4-scoring.hf.space/questions")
+        url = "https://agents-course-unit4-scoring.hf.space/questions"
 
-        if response.status_code != 200:
-            return f"Errore nel fetch delle domande: {response.status_code}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    return f"Errore nel fetch delle domande: {response.status}"
 
-        questions = response.json()
+                questions = await response.json()
 
-        # Trova la task specifica
+        # Resto del codice rimane uguale...
         task = None
         for q in questions:
             if q["task_id"] == task_id:
@@ -280,16 +279,15 @@ async def fetch_gaia_task(task_id: str) -> str:
                 break
 
         if not task:
-            return f"Task ID {task_id} non trovata. Controlla che l'ID sia corretto."
+            return f"Task ID {task_id} non trovata."
 
-        # Prepara il prompt formattato
+        # Formatta il prompt...
         prompt_parts = []
         prompt_parts.append("=== GAIA TASK ===")
         prompt_parts.append(f"Task ID: {task['task_id']}")
         prompt_parts.append(f"Level: {task['Level']}")
         prompt_parts.append(f"Question: {task['question']}")
 
-        # Controlla se ha file allegati
         if task.get('file_name') and task['file_name'].strip():
             prompt_parts.append(f"\nFile allegato: {task['file_name']}")
             prompt_parts.append(
@@ -315,33 +313,24 @@ async def fetch_gaia_task(task_id: str) -> str:
 
 
 async def list_gaia_tasks(level: Optional[str] = None, limit: int = 10) -> str:
-    """Lista le task GAIA disponibili.
-
-    Args:
-        level: Filtra per livello (1, 2, 3)
-        limit: Numero massimo di task da mostrare
-
-    Returns:
-        Lista formattata delle task
-    """
+    """Lista le task GAIA disponibili."""
     try:
-        response = requests.get(
-            "https://agents-course-unit4-scoring.hf.space/questions")
+        url = "https://agents-course-unit4-scoring.hf.space/questions"
 
-        if response.status_code != 200:
-            return f"Errore nel fetch delle domande: {response.status_code}"
+        async with aiohttp.ClientSession() as session:  # ✅
+            async with session.get(url) as response:
+                if response.status != 200:
+                    return f"Errore nel fetch delle domande: {response.status}"
 
-        questions = response.json()
+                questions = await response.json()
 
-        # Filtra per livello se specificato
+        # Resto del codice rimane uguale...
         if level:
             questions = [q for q in questions if str(
                 q.get('Level')) == str(level)]
 
-        # Limita i risultati
         questions = questions[:limit]
 
-        # Formatta l'output
         output = []
         output.append(f"=== GAIA TASKS (Prime {len(questions)}) ===")
 
@@ -357,7 +346,6 @@ async def list_gaia_tasks(level: Optional[str] = None, limit: int = 10) -> str:
 
         output.append(
             "Per caricare una task specifica usa: fetch_gaia_task('task_id')")
-
         return "\n".join(output)
 
     except Exception as e:
@@ -435,4 +423,4 @@ async def analyze_file(file_path: str, query: Optional[str] = None) -> str:
         return f"Errore nell'analisi del file: {str(e)}"
 
 TOOLS: List[Callable[..., Any]] = [search, download_gaia_file,
-                                   python_repl, read_spreadsheet, analyze_spreadsheet_data, fetch_gaia_task, list_gaia_tasks, analyze_spreadsheet_data, analyze_file]
+                                   python_repl, read_spreadsheet, analyze_spreadsheet_data, fetch_gaia_task, list_gaia_tasks, analyze_file]
