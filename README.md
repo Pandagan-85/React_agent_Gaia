@@ -249,6 +249,12 @@ For detailed tracing and collaboration:
 2. Set `LANGSMITH_TRACING=true`
 3. View detailed execution traces in LangSmith dashboard
 
+#### Demos
+
+[![GAIA Demo](./static/screenshot/react_agent_gaia_1.webp)](./static/videos/agent_grafo_mini.mp4)
+
+[![GAIA Demo](./static/screenshot/react_agent_gaia_2.webp)](./static/videos/agent_step_mini.mp4)
+
 ## Project Structure
 
 ```
